@@ -12,6 +12,7 @@ Data_JSON = 'settings.json'
 download_to_directory = []
 theme = []
 always_on_top = []
+originalPalette = None
 class ConvertThread(QThread):  
     data_downloaded = pyqtSignal(object)
     def __init__(self, file):
@@ -26,19 +27,29 @@ class ConvertThread(QThread):
 class mainwindowUI(QMainWindow):
     resized = QtCore.pyqtSignal()
     def __init__(self, parent = None):
+        QApplication.setPalette(QApplication.palette())
+        global originalPalette
+        if originalPalette == None: originalPalette = QApplication.palette()
         super(mainwindowUI, self).__init__(parent)
         uic.loadUi('UI/mainwindo.ui', self)
         self.setWindowTitle('Spotify Downloader')
         self.set_theme()
         
-        self.actionAbout = self.findChild(QAction, 'actionAbout_2')
+        self.progressBar = self.findChild(QProgressBar, 'progressBar')
+        self.progressBar.setHidden(True)
+        self.progressBar.setAlignment(QtCore.Qt.AlignLeft)
+        
+        self.actionAbout = self.findChild(QAction, 'actionAbout_Spotify_Downloader')
         self.actionAbout.triggered.connect(self.open_about)
         self.actionAbout.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_FileDialogInfoView')))
 
+        self.actionTheme = self.findChild(QAction, 'actionTheme')
+        self.actionTheme.triggered.connect(self.open_theme)
         self.show()
     def set_theme(self):
         if theme[0] == 0: 
-            QApplication.setPalette(QApplication.palette())
+            app.setStyle("windowsvista")
+            QApplication.setPalette(originalPalette)
         if theme[0] == 1: 
             app.setStyle("Fusion")
             palette = QPalette()
@@ -62,6 +73,11 @@ class mainwindowUI(QMainWindow):
     def open_about(self):
         self.about = aboutwindowUI()
         self.about.show()
+    def open_theme(self):
+        self.close()
+        self.settings = settingsUI()
+        self.settings.resize(300,100)
+        self.settings.show()
     def start_conversion(self, files):
         self.threads = []
         converter = ConvertThread(files)
@@ -91,7 +107,7 @@ class mainwindowUI(QMainWindow):
 class settingsUI(QWidget):
     def __init__(self):
         super().__init__()
-        uic.loadUi('Music_Generator/settings.ui', self)
+        uic.loadUi('UI/settings.ui', self)
         self.Default = self.findChild(QRadioButton, 'radDefault')
         self.Default.toggled.connect(lambda:self.RadClicked(self.Default))
         self.Dark = self.findChild(QRadioButton, 'radDark')
@@ -100,8 +116,8 @@ class settingsUI(QWidget):
         self.btnApply = self.findChild(QPushButton, 'btnApply')
         self.btnApply.clicked.connect(self.close)
         
-        self.Default.setChecked(True if theme == 0 else False)
-        self.Dark.setChecked(True if theme == 1 else False)
+        self.Default.setChecked(True if theme[0] == 0 else False)
+        self.Dark.setChecked(True if theme[0] == 1 else False)
     def RadClicked(self, state):
         temp_num = 0
         temp_path = download_to_directory[0]
@@ -118,7 +134,8 @@ class settingsUI(QWidget):
         with open(Data_JSON, mode='w+', encoding='utf-8') as file: json.dump(Data_JSON_Contents, file, ensure_ascii=True, indent=4)
         load_data_file(always_on_top, download_to_directory, theme)
         if theme[0] == 0: 
-            QApplication.setPalette(QApplication.palette())
+            app.setStyle("windowsvista")
+            QApplication.setPalette(originalPalette)
         if theme[0] == 1: 
             app.setStyle("Fusion")
             palette = QPalette()
@@ -146,7 +163,7 @@ class settingsUI(QWidget):
 class aboutwindowUI(QDialog):
     def __init__(self, parent=None):
         super(aboutwindowUI, self).__init__(parent)
-        uic.loadUi('JordanProgramListOrginizer/aboutwindow.ui', self)
+        uic.loadUi('UI/aboutwindow.ui', self)
         self.setWindowTitle("About")
         self.setWindowIcon(self.style().standardIcon(getattr(QStyle, 'SP_FileDialogInfoView')))
         self.icon = self.findChild(QLabel, 'lblIcon')
@@ -155,11 +172,11 @@ class aboutwindowUI(QDialog):
         myScaledPixmap = pixmap.scaled(self.icon.size(), Qt.KeepAspectRatio)
         self.icon.setPixmap(myScaledPixmap)
         self.lisenceText = self.findChild(QLabel,'label_2')
-        with open('LICENSE.md', 'r') as f: self.lisenceText.setText(f.read())
+        with open('LICENSE', 'r') as f: self.lisenceText.setText(f.read())
         self.btnClose = self.findChild(QPushButton, 'btnClose')
         self.btnClose.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_DialogCloseButton')))
         self.btnClose.clicked.connect(self.close)
-        self.resize(750,450)
+        self.resize(700,400)
         self.show()
 def load_data_file(*args):
     global Data_JSON_Contents
