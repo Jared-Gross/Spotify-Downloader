@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>281</width>
+    <width>377</width>
     <height>131</height>
    </rect>
   </property>
@@ -104,6 +104,13 @@
          </spacer>
         </item>
         <item>
+         <widget class="QPushButton" name="btnCancel">
+          <property name="text">
+           <string>Cancel</string>
+          </property>
+         </widget>
+        </item>
+        <item>
          <widget class="QPushButton" name="btnDownload">
           <property name="maximumSize">
            <size>
@@ -134,7 +141,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>281</width>
+     <width>377</width>
      <height>21</height>
     </rect>
    </property>
