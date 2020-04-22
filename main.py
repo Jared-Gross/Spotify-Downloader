@@ -32,7 +32,7 @@ class CalculateThread(QThread):
             if not file_calculate_percentage == '':
                 if self.maxLen == None: self.maxLen = sum(1 for line in open(file_calculate_percentage))
                 num_lines = sum(1 for line in open(file_calculate_percentage))
-                download_percentage = (self.maxLen-num_lines)/self.maxLen*100
+                download_percentage = (self.maxLen-num_lines) / self.maxLen*100
                 self.calculate.emit(download_percentage)
                 if num_lines == 0:
                     self.maxLen = None
@@ -96,10 +96,15 @@ class mainwindowUI(QMainWindow):
         
         self.txtURL = self.findChild(QLineEdit, 'url')
         self.txtURL.setToolTip('Provide a spotify link.')
+        self.txtURL.textChanged.connect(self.verify_text)
         
         self.btnDownload = self.findChild(QPushButton,'btnDownload')
         self.btnDownload.clicked.connect(self.start_download)
         self.btnDownload.setToolTip('Downloads the link provided in the textbox.')
+        
+        self.btnCancel = self.findChild(QPushButton,'btnCancel')
+        self.btnCancel.clicked.connect(self.cancel_download)
+        self.btnCancel.setToolTip('Downloads the link provided in the textbox.')
         
         self.progressBar = self.findChild(QProgressBar, 'progressBar')
         self.progressBar.setHidden(True)
@@ -112,7 +117,7 @@ class mainwindowUI(QMainWindow):
         self.actionDownload_location = self.findChild(QAction, 'actionDownload_location')
         self.actionDownload_location.triggered.connect(self.get_download_dir)
         self.actionDownload_location.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_DirOpenIcon')))
-        self.actionDownload_location.setStatusTip('Set default download location.')
+        self.actionDownload_location.setStatusTip(f'Set default download location. {download_to_directory[0]}')
 
         self.actionAlways_appear_on_top = self.findChild(QAction, 'actionAlways_appear_on_top')
         self.actionAlways_appear_on_top.triggered.connect(self.set_appear_on_top)
@@ -123,7 +128,15 @@ class mainwindowUI(QMainWindow):
 
         self.actionTheme = self.findChild(QAction, 'actionTheme')
         self.actionTheme.triggered.connect(self.open_theme)
+        self.actionTheme.setStatusTip('Change from Dark mode to default mode.')
+        self.btnDownload.setEnabled(False)
+        self.btnCancel.setEnabled(False)
+        self.btnCancel.setHidden(True)
+        # self.btnDownload.setEnabled(False)
         self.show()
+    def verify_text(self):
+        if not self.txtURL.text() == '': self.btnDownload.setEnabled(True)
+        else: self.btnDownload.setEnabled(False)
     def get_download_dir(self):
         dir_ = QFileDialog.getExistingDirectory(None, 'Select a default download folder', 'C:\\', QFileDialog.ShowDirsOnly)
         if dir_:
@@ -139,6 +152,7 @@ class mainwindowUI(QMainWindow):
                 })
             with open(Data_JSON, mode='w+', encoding='utf-8') as file: json.dump(Data_JSON_Contents, file, ensure_ascii=True, indent=4)
             load_data_file(always_on_top, download_to_directory, theme)
+        self.actionDownload_location.setStatusTip(f'Set default download location. {download_to_directory[0]}')
     def set_appear_on_top(self):
         temp_num = theme[0]
         temp_path = download_to_directory[0]
@@ -189,28 +203,45 @@ class mainwindowUI(QMainWindow):
         self.settings.show()
     def start_download(self):
         if self.txtURL.text() == '': return
-        p = re.compile('https://open.spotify.com/(track|playlist|album)/')
+        p = re.compile('https://open.spotify.com/(track|playlist|album)/[a-zA-Z0-9]{22}')
         m = p.match(self.txtURL.text())
         if m:
+            self.btnCancel.setEnabled(True)
+            self.btnCancel.setHidden(False)
+            self.btnDownload.setEnabled(False)
+            self.actionTheme.setEnabled(False)
+            self.actionDownload_location.setEnabled(False)
+            self.actionAlways_appear_on_top.setEnabled(False)
             self.threads = []
-            downloader = DownloadThread(self.txtURL.text())
-            downloader.data_downloaded.connect(self.on_data_ready)
-            self.threads.append(downloader)
-            downloader.start()
+            self.downloader = DownloadThread(self.txtURL.text())
+            self.downloader.data_downloaded.connect(self.on_data_ready)
+            self.threads.append(self.downloader)
+            self.downloader.start()
             
             # self.otherthreads = []
-            calculator = CalculateThread('')
-            calculator.calculate.connect(self.update_progress_bar)
-            self.threads.append(calculator)
-            calculator.start()
+            self.calculator = CalculateThread('')
+            self.calculator.calculate.connect(self.update_progress_bar)
+            self.threads.append(self.calculator)
+            self.calculator.start()
             
         else:
-            QMessageBox.critical(self, 'Doesn\'t Match', f"The spotfiy link: \n'{self.txtURL.text()}' isn't valid.", QMessageBox.Ok, QMessageBox.Ok)
+            QMessageBox.critical(self, 'Doesn\'t Match', f"The Spotfiy link: \n'{self.txtURL.text()}' isn't valid.", QMessageBox.Ok, QMessageBox.Ok)
+    def cancel_download(self):
+        self.on_data_ready('')
+        self.downloader.terminate()
+        self.calculator.terminate()
+        print('cancel')
     def on_data_ready(self, text):
         try:
             # self.lblState.setHidden(False)
-            if text == '': 
+            if text == '':
+                self.btnCancel.setHidden(True)
+                self.btnCancel.setEnabled(False)
                 self.progressBar.setHidden(True)
+                self.actionTheme.setEnabled(True)
+                self.actionAlways_appear_on_top.setEnabled(True)
+                self.btnDownload.setEnabled(True)
+                self.actionDownload_location.setEnabled(True)
                 return
             self.progressBar.setMaximum(100)
             self.progressBar.setHidden(False)
