@@ -5,7 +5,7 @@ from PyQt5 import *
 from PyQt5 import uic, QtPrintSupport
 from PyQt5.QtPrintSupport import QPrintDialog, QPrinter
 from PyQt5 import QtCore, QtWidgets, QtPrintSupport, QtGui
-import sys, os, json, spotdl, re, threading
+import sys, os, json, spotdl, re, threading, subprocess
 import time
 Data_JSON_Contents = {}
 Data_JSON = 'settings.json'
@@ -49,6 +49,8 @@ class DownloadThread(QThread):
         self.data_downloaded.emit(f'Starting..')
         # time.sleep(1)
         url = self.url
+        fileName = ''
+        fileList = []
         if '/track/' in url:
             self.data_downloaded.emit(f' Downloading track...')
             os.popen(f'spotdl --folder "{download_to_directory[0]}" --song {url} --overwrite skip').read() # > test.txt'
@@ -56,8 +58,6 @@ class DownloadThread(QThread):
             self.data_downloaded.emit(f'Getting all songs from playlist...')
             os.popen(f'spotdl --folder "{download_to_directory[0]}" --playlist {url} --overwrite skip').read()
             self.data_downloaded.emit(f'Downloading all songs from playlist....')
-            fileName = ''
-            fileList = []
             for file in os.listdir(os.path.dirname(os.path.abspath(__file__))):
                 if file.endswith(".txt"): fileList.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), file))
             fileName = fileList[0]
@@ -68,8 +68,6 @@ class DownloadThread(QThread):
             self.data_downloaded.emit(f'Getting all songs from album...')
             os.popen(f'spotdl --folder "{download_to_directory[0]}" --album {url} --overwrite skip').read()
             self.data_downloaded.emit(f'Downloading all songs from album....')
-            fileName = ''
-            fileList = []
             for file in os.listdir(os.path.dirname(os.path.abspath(__file__))):
                 if file.endswith(".txt"): fileList.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), file))
             fileName = fileList[0]
@@ -80,7 +78,7 @@ class DownloadThread(QThread):
         time.sleep(1)
         self.data_downloaded.emit('')
         file_calculate_percentage = ''
-        os.remove(fileName)
+        if not fileName == '': os.remove(fileName)
 class mainwindowUI(QMainWindow):
     resized = QtCore.pyqtSignal()
     def __init__(self, parent = None):
@@ -92,6 +90,7 @@ class mainwindowUI(QMainWindow):
         self.setStyleSheet(open("style.qss", "r").read())
         
         self.setWindowTitle('Spotify Downloader')
+        self.setWindowIcon(QIcon('icon.png'))
         self.set_theme()
         
         self.txtURL = self.findChild(QLineEdit, 'url')
@@ -104,11 +103,12 @@ class mainwindowUI(QMainWindow):
         
         self.btnCancel = self.findChild(QPushButton,'btnCancel')
         self.btnCancel.clicked.connect(self.cancel_download)
-        self.btnCancel.setToolTip('Downloads the link provided in the textbox.')
+        self.btnCancel.setToolTip('Cancel downloads.')
         
         self.progressBar = self.findChild(QProgressBar, 'progressBar')
         self.progressBar.setHidden(True)
         self.progressBar.setAlignment(QtCore.Qt.AlignLeft)
+        self.progressBar.setMaximum(100)
         
         self.actionAbout = self.findChild(QAction, 'actionAbout_Spotify_Downloader')
         self.actionAbout.triggered.connect(self.open_about)
@@ -116,8 +116,13 @@ class mainwindowUI(QMainWindow):
 
         self.actionDownload_location = self.findChild(QAction, 'actionDownload_location')
         self.actionDownload_location.triggered.connect(self.get_download_dir)
-        self.actionDownload_location.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_DirOpenIcon')))
+        self.actionDownload_location.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_FileDialogNewFolder')))
         self.actionDownload_location.setStatusTip(f'Set default download location. {download_to_directory[0]}')
+        
+        self.actionOpen_Download_location = self.findChild(QAction,'actionOpen_Download_location')
+        self.actionOpen_Download_location.triggered.connect(self.open_download_dir)
+        self.actionOpen_Download_location.setIcon(self.style().standardIcon(getattr(QStyle, 'SP_DirOpenIcon')))
+        self.actionOpen_Download_location.setStatusTip(f'Open default download location. {download_to_directory[0]}')
 
         self.actionAlways_appear_on_top = self.findChild(QAction, 'actionAlways_appear_on_top')
         self.actionAlways_appear_on_top.triggered.connect(self.set_appear_on_top)
@@ -134,6 +139,15 @@ class mainwindowUI(QMainWindow):
         self.btnCancel.setHidden(True)
         # self.btnDownload.setEnabled(False)
         self.show()
+    def open_download_dir(self):
+        FILEBROWSER_PATH = os.path.join(os.getenv('WINDIR'), 'explorer.exe')
+        # explorer would choke on forward slashes
+        path = download_to_directory[0]
+        path = path.replace('/', '\\')
+        if os.path.isdir(path):
+            subprocess.run([FILEBROWSER_PATH, path])
+        elif os.path.isfile(path):
+            subprocess.run([FILEBROWSER_PATH, '/select,', os.path.normpath(path)])
     def verify_text(self):
         if not self.txtURL.text() == '': self.btnDownload.setEnabled(True)
         else: self.btnDownload.setEnabled(False)
@@ -142,7 +156,6 @@ class mainwindowUI(QMainWindow):
         if dir_:
             temp_num = theme[0]
             temp_appear_on_top = always_on_top[0]
-            print(dir_)
             Data_JSON_Contents.pop(0)
             Data_JSON_Contents.append(
                 {
@@ -152,7 +165,8 @@ class mainwindowUI(QMainWindow):
                 })
             with open(Data_JSON, mode='w+', encoding='utf-8') as file: json.dump(Data_JSON_Contents, file, ensure_ascii=True, indent=4)
             load_data_file(always_on_top, download_to_directory, theme)
-        self.actionDownload_location.setStatusTip(f'Set default download location. {download_to_directory[0]}')
+            self.actionDownload_location.setStatusTip(f'Set default download location. {download_to_directory[0]}')
+            self.actionOpen_Download_location.setStatusTip(f'Open default download location. {download_to_directory[0]}')
     def set_appear_on_top(self):
         temp_num = theme[0]
         temp_path = download_to_directory[0]
@@ -207,7 +221,7 @@ class mainwindowUI(QMainWindow):
         m = p.match(self.txtURL.text())
         if m:
             self.btnCancel.setEnabled(True)
-            self.btnCancel.setHidden(False)
+            # self.btnCancel.setHidden(False)
             self.btnDownload.setEnabled(False)
             self.actionTheme.setEnabled(False)
             self.actionDownload_location.setEnabled(False)
@@ -228,9 +242,17 @@ class mainwindowUI(QMainWindow):
             QMessageBox.critical(self, 'Doesn\'t Match', f"The Spotfiy link: \n'{self.txtURL.text()}' isn't valid.", QMessageBox.Ok, QMessageBox.Ok)
     def cancel_download(self):
         self.on_data_ready('')
-        self.downloader.terminate()
-        self.calculator.terminate()
-        print('cancel')
+        for i in self.threads:
+            i.terminate()
+        self.threads.clear()
+        fileName = ''
+        fileList = []
+        for file in os.listdir(os.path.dirname(os.path.abspath(__file__))):
+            if file.endswith(".txt"): fileList.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), file))
+        fileName = fileList[0]
+        os.remove(fileName)
+        # self.downloader.terminate()
+        # self.calculator.terminate()
     def on_data_ready(self, text):
         try:
             # self.lblState.setHidden(False)
@@ -243,18 +265,15 @@ class mainwindowUI(QMainWindow):
                 self.btnDownload.setEnabled(True)
                 self.actionDownload_location.setEnabled(True)
                 return
-            self.progressBar.setMaximum(100)
             self.progressBar.setHidden(False)
             self.progressBar.setFormat(' ' + text)
         except Exception as e: print(e)
-    def update_progress_bar(self, value):
-        self.progressBar.setValue(download_percentage)
-        self.progressBar.setMaximum(100)
-        print(value)
+    def update_progress_bar(self, value): self.progressBar.setValue(download_percentage)
 class settingsUI(QWidget):
     def __init__(self):
         super().__init__()
         uic.loadUi('UI/settings.ui', self)
+        self.setWindowIcon(QIcon('icon.png'))
         self.Default = self.findChild(QRadioButton, 'radDefault')
         self.Default.toggled.connect(lambda:self.RadClicked(self.Default))
         self.Dark = self.findChild(QRadioButton, 'radDark')
@@ -311,6 +330,7 @@ class aboutwindowUI(QDialog):
     def __init__(self, parent=None):
         super(aboutwindowUI, self).__init__(parent)
         uic.loadUi('UI/aboutwindow.ui', self)
+        self.setWindowIcon(QIcon('icon.png'))
         self.setWindowTitle("About")
         self.setWindowIcon(self.style().standardIcon(getattr(QStyle, 'SP_FileDialogInfoView')))
         self.icon = self.findChild(QLabel, 'lblIcon')
